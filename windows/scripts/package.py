@@ -181,6 +181,8 @@ def main():
     (publish / "docs").mkdir()
     shutil.copy2(ROOT / "SECURITY.md", publish / "SECURITY.md")
     shutil.copy2(ROOT / "docs/WINDOWS_VALIDATION.md", publish / "docs/WINDOWS_VALIDATION.md")
+    shutil.copy2(ROOT / "docs/OPEN_SOURCE_REVIEW.md", publish / "docs/OPEN_SOURCE_REVIEW.md")
+    shutil.copy2(ROOT / "docs/CODEQL_TRIAGE.md", publish / "docs/CODEQL_TRIAGE.md")
     shutil.copy2(ROOT / "windows/ClipDiary.Windows/Platform/TESTABILITY.md", publish / "docs/TESTABILITY.md")
     (publish / "BUILD_INFO.json").write_text(json.dumps({"version": version, "runtime": args.runtime,
         "sourceCommit": revision, "sourceDirty": dirty, "sdkVersion": sdk_version,
