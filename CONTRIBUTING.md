@@ -19,3 +19,11 @@ For a pull request, describe the user-visible change, the tests you actually ran
 Report sensitive defects through [private vulnerability reporting](https://github.com/YashModi1804/ClipDiary/security/advisories/new), rather than a public issue. Use synthetic fixtures for regression coverage.
 
 Dependency and SDK updates must refresh the normal and single-file publish lockfiles, plus the versions and verified archive hashes in `windows/publish-runtime-lock.json`. Review upstream licenses and advisories before updating these inputs. Run the packager from a clean committed checkout; `--allow-dirty` marks a development build and must not be used for release artifacts. Keep action references pinned to full commit IDs and review automated updates before merging.
+
+To intentionally refresh the single-file graph after updating package or SDK versions:
+
+```sh
+dotnet restore windows/ClipDiary.Windows/ClipDiary.Windows.csproj -p:RuntimeIdentifier=win-x64 -p:SelfContained=true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishTrimmed=false --force-evaluate
+```
+
+Review both publish lockfiles and refresh the runtime manifest hashes from the exact upstream archives. Repeat with `--locked-mode` instead of `--force-evaluate`, then verify both runtime packages in native CI. Keep `RuntimeIdentifier` as a property here; `dotnet restore -r` changes the multi-runtime restore graph.
