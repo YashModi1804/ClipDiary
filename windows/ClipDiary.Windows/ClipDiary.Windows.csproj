@@ -11,7 +11,7 @@
     <AssemblyName>ClipDiary</AssemblyName>
     <RootNamespace>ClipDiary.Windows</RootNamespace>
     <StartupObject>ClipDiary.Windows.Program</StartupObject>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets/ClipDiary.ico</ApplicationIcon>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>

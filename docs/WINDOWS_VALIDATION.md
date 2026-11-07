@@ -1,8 +1,17 @@
 # Windows validation
 
-Date: 7 November 2026. Native Windows version 0.1.0 is a beta pending actual Windows execution.
+Date: 7 November 2026. Native Windows version 0.1.1 remains a beta pending manual Windows acceptance.
 
-Observed so far:
+## GitHub CI update
+
+The [PR run on b8f20e6](https://github.com/YashModi1804/ClipDiary/actions/runs/42357914755) and [push run](https://github.com/YashModi1804/ClipDiary/actions/runs/42357911375) passed portable Linux/macOS/Windows checks, Mac native checks and XCTest, native Windows privacy/settings/UI fixtures, and both x64/ARM64 installer publications. Nine packaging guard tests passed on all three operating systems. ARM64 binaries were cross-built on x64 Windows, not executed on ARM64 hardware.
+
+Manual tray, hotkey/focus, login, lock/sleep, screenshot-folder, pointer and installer install/update/uninstall acceptance remains pending. Signing and notarization remain unconfigured. The [open-source review](OPEN_SOURCE_REVIEW.md) records security findings and limits.
+
+## Earlier local validation
+
+The following records describe the earlier Mac-only validation, before these GitHub results:
+
 
 - Portable Windows core checks run on this Mac with .NET 10.0.403 and pinned Microsoft.Data.Sqlite 10.0.14: 79 assertions including stress passed.
 - Portable capture-policy checks run on this Mac: 92 assertions passed, including local-cloud availability and dotted process-name cases.
@@ -15,7 +24,7 @@ Stress samples are synthetic individual measurements, not p95 end-user latency. 
 
 No real clipboard or history data was inspected. Dependency versions/hashes are locked; release artifacts include source/dependency licenses and checksums. Signing credentials and generated bundles are excluded from Git.
 
-## Final results
+## Earlier local artifact results
 
 The complete Windows solution cross-build passed with zero warnings/errors. After the minimized-window fix, both final self-contained publications compiled successfully and NSIS 3.13 generated per-user setup executables on this Mac. The x64 application PE machine is0x8664; the ARM64 application is0xAA64. Both ZIP CRC checks passed; independent SHA256 checks matched each ZIP and setup executable. Artifacts contain the MIT license, dependency/runtime notices, offline guides and BUILD_INFO.json linking the executable source to commit4c984a4 and SDK10.0.403.
 
@@ -32,4 +41,4 @@ A real Windows-only UI smoke fixture now constructs the MainWindow using synthet
 
 The GitHub workflow is prepared for portable checks on Linux/macOS/Windows, Mac native checks plus XCTest under full Xcode, and synthetic native Windows checks followed by packaging. Workflow YAML parsed successfully; the repository is now connected to GitHub; check the [Actions runs](https://github.com/YashModi1804/ClipDiary/actions) for actual remote results. The local results recorded here do not claim a Windows CI pass. Local Command Line Tools lack XCTest, so the separate XCTest sources remain unexecuted here. Existing Mac standalone/native checks passed86 service/35 model assertions plus keyboard/six hover layouts. A public Mac ZIP was also rebuilt with license resources; it does not replace the user's installed app.
 
-Windows-native acceptance remains pending. All Windows downloads must remain labeled beta until the real Windows checks and manual install/update/quit/login/clipboard/pointer scenarios are observed. No signing certificate or public GitHub release has been created. Source publication is separate from publishing signed release binaries.
+Manual Windows acceptance remains pending. All Windows downloads must remain labeled beta until the remaining manual install/update/quit/login/clipboard/pointer scenarios are observed. No signing certificate or public GitHub release has been created. Source publication is separate from publishing signed release binaries.

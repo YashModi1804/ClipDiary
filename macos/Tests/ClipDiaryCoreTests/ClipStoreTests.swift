@@ -64,7 +64,8 @@ final class ClipStoreTests: XCTestCase {
 
     func testDuplicateCaptureDoesNotRefreshExpiryAndLaterCopyIsNewEvent() throws {
         let store = try ClipStore(directory: directory)
-        let now = Date()
+        // SQLite stores Unix seconds as Double; use an exactly representable fixture.
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
         let first = try XCTUnwrap(store.addText("same", source: "A", now: now))
         let duplicate = try XCTUnwrap(store.addText("same", source: "A", now: now.addingTimeInterval(1)))
         XCTAssertEqual(first.id, duplicate.id)

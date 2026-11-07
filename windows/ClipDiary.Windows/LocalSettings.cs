@@ -5,6 +5,7 @@ namespace ClipDiary.Windows;
 
 internal sealed class LocalSettings(string directory)
 {
+    private const int MaximumBytes = 64 * 1024;
     private readonly string path = Path.Combine(directory, "settings.json");
     internal bool Exists => File.Exists(path);
     internal static UiSettings Default => new(true, false,
@@ -14,7 +15,7 @@ internal sealed class LocalSettings(string directory)
     {
         if (!Exists) return Default;
         RejectLink(path);
-        if (new FileInfo(path).Length > 64 * 1024)
+        if (new FileInfo(path).Length > MaximumBytes)
             throw new InvalidDataException("The settings file is too large. Your history has not been reset.");
         return Validate(JsonSerializer.Deserialize<UiSettings>(File.ReadAllText(path))
             ?? throw new InvalidDataException("Settings could not be read. Your history has not been reset."));
@@ -23,11 +24,13 @@ internal sealed class LocalSettings(string directory)
     internal void Save(UiSettings settings)
     {
         settings = Validate(settings);
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(settings, new JsonSerializerOptions { WriteIndented = true });
+        if (bytes.Length > MaximumBytes)
+            throw new InvalidDataException("Settings exceed the 64 KiB limit. Shorten the exclusion list or folder path; existing settings have not been changed.");
         RejectLink(path);
         var temporary = Path.Combine(directory, $"settings-{Guid.NewGuid():N}.tmp");
         try
         {
-            var bytes = JsonSerializer.SerializeToUtf8Bytes(settings, new JsonSerializerOptions { WriteIndented = true });
             using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
             { stream.Write(bytes); stream.Flush(true); }
             File.Move(temporary, path, true);

@@ -18,6 +18,13 @@ static class Checks
         using var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(folder,"history.sqlite3"),Pooling=false}.ToString());
         db.Open(); using var cmd=db.CreateCommand(); cmd.CommandText=sql;cmd.ExecuteNonQuery();
     }
+    private static byte[] ReadSharedBytes(string path)
+    {
+        // SQLite keeps its database handle open on Windows. These snapshots are
+        // taken only after this fixture's synchronous SQL operation completes.
+        using var input=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete);
+        using var output=new MemoryStream();input.CopyTo(output);return output.ToArray();
+    }
     private static T RawScalar<T>(string folder,string sql)
     {
         using var db=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(folder,"history.sqlite3"),Pooling=false}.ToString());
@@ -173,9 +180,9 @@ static class Checks
         Require(!System.IO.Directory.EnumerateFiles(Path.Combine(folder,"Assets")).Any()&&!System.IO.Directory.EnumerateFiles(Path.Combine(folder,"Thumbnails")).Any(),"failed SQL insert cleans both written assets");
         Raw(folder,"DROP TRIGGER reject_image");
         string sentinel="DELETE_SENTINEL_"+Guid.NewGuid().ToString("N");var text=store.AddText(sentinel,"Test")!;
-        Require(Encoding.UTF8.GetString(File.ReadAllBytes(Path.Combine(folder,"history.sqlite3"))).Contains(sentinel,StringComparison.Ordinal),"sentinel actually persisted before delete");
+        Require(Encoding.UTF8.GetString(ReadSharedBytes(Path.Combine(folder,"history.sqlite3"))).Contains(sentinel,StringComparison.Ordinal),"sentinel actually persisted before delete");
         store.Delete(text.Id);
-        Require(!Encoding.UTF8.GetString(File.ReadAllBytes(Path.Combine(folder,"history.sqlite3"))).Contains(sentinel,StringComparison.Ordinal),"secure_delete removes active database sentinel bytes");
+        Require(!Encoding.UTF8.GetString(ReadSharedBytes(Path.Combine(folder,"history.sqlite3"))).Contains(sentinel,StringComparison.Ordinal),"secure_delete removes active database sentinel bytes");
         Require(!File.Exists(Path.Combine(folder,"history.sqlite3-journal"))&&!File.Exists(Path.Combine(folder,"history.sqlite3-wal")),"DELETE journal leaves no surviving rollback/WAL file");
         if(!OperatingSystem.IsWindows())
         {
@@ -185,7 +192,61 @@ static class Checks
             try {Throws<ClipStoreException>(()=>store.Delete(image.Id),"permission denial reported");}
             finally {File.SetUnixFileMode(assets,UnixFileMode.UserRead|UnixFileMode.UserWrite|UnixFileMode.UserExecute);}
             store.Purge();Require(!File.Exists(image.AssetPath)&&!File.Exists(image.ThumbnailPath),"failed deletion retried without restart");
+            FailedTemporaryCleanup(store,assets);
+            FailedTemporaryCleanup(store,assets,denyStat:true);
         }
+    }
+    [System.Runtime.Versioning.UnsupportedOSPlatform("windows")]
+    private static void FailedTemporaryCleanup(ClipStore store,string assets,bool denyStat=false)
+    {
+        // Controlled partial-stream failure makes an otherwise hard-to-time filesystem
+        // boundary deterministic. It never accesses a clipboard or a user's files.
+        var method=typeof(ClipStore).GetMethod("WritePrivate",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic,null,[typeof(string),typeof(Stream)],null)!;
+        Exception? original=null;
+        try
+        {
+            using var input=new DeniedCleanupStream(assets,denyStat);
+            try { method.Invoke(store,[Path.Combine(assets,Guid.NewGuid().ToString("D")+".png"),input]); }
+            catch(System.Reflection.TargetInvocationException error) { original=error.InnerException; }
+            Require(original is IOException && original.Message==DeniedCleanupStream.Failure,"failed temporary removal must not mask the interrupted-write error");
+            if(denyStat)
+            {
+                Require(!File.Exists(input.TemporaryPath),"inaccessible parent hides an existing sensitive temporary from File.Exists");
+                Throws<ClipStoreException>(()=>store.Purge(),"inaccessible temporary remains queued and reports cleanup failure");
+                File.SetUnixFileMode(assets,UnixFileMode.UserRead|UnixFileMode.UserWrite|UnixFileMode.UserExecute);
+            }
+            string temporary=System.IO.Directory.EnumerateFiles(assets,"*.tmp").Single();
+            Require(File.ReadAllText(temporary)==DeniedCleanupStream.SyntheticSecret,"sensitive partial fixture really exists before retry");
+        }
+        finally { File.SetUnixFileMode(assets,UnixFileMode.UserRead|UnixFileMode.UserWrite|UnixFileMode.UserExecute); }
+        store.Purge();
+        Require(!System.IO.Directory.EnumerateFiles(assets,"*.tmp").Any(),"periodic purge retries failed partial-image cleanup without restart");
+    }
+    [System.Runtime.Versioning.UnsupportedOSPlatform("windows")]
+    private sealed class DeniedCleanupStream(string folder,bool denyStat=false):Stream
+    {
+        internal const string Failure="Synthetic image write interrupted";
+        internal const string SyntheticSecret="Synthetic private partial image";
+        private bool written;
+        internal string? TemporaryPath { get; private set; }
+        public override int Read(byte[] buffer,int offset,int count)
+        {
+            if(!written)
+            {
+                written=true;byte[] bytes=Encoding.UTF8.GetBytes(SyntheticSecret);bytes.CopyTo(buffer,offset);return bytes.Length;
+            }
+            TemporaryPath=System.IO.Directory.EnumerateFiles(folder,"*.tmp").Single();
+            File.SetUnixFileMode(folder,denyStat?UnixFileMode.None:UnixFileMode.UserRead|UnixFileMode.UserExecute);
+            throw new IOException(Failure);
+        }
+        public override int Read(Span<byte> buffer)
+        {
+            byte[] temporary=new byte[buffer.Length];int read=Read(temporary,0,temporary.Length);temporary.AsSpan(0,read).CopyTo(buffer);return read;
+        }
+        public override bool CanRead=>true;public override bool CanSeek=>false;public override bool CanWrite=>false;
+        public override long Length=>throw new NotSupportedException();public override long Position{get=>throw new NotSupportedException();set=>throw new NotSupportedException();}
+        public override void Flush()=>throw new NotSupportedException();public override long Seek(long offset,SeekOrigin origin)=>throw new NotSupportedException();
+        public override void SetLength(long value)=>throw new NotSupportedException();public override void Write(byte[] buffer,int offset,int count)=>throw new NotSupportedException();
     }
     private static async Task CancellationAndSerialization(string folder)
     {

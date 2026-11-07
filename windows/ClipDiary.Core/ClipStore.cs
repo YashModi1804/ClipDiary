@@ -321,7 +321,9 @@ public sealed class ClipStore : IDisposable
         Exception? first=null;
         foreach(var path in _pendingRemovals.ToArray())
         {
-            try { if(Owned(path) && (File.Exists(path) || new FileInfo(path).LinkTarget is not null)) File.Delete(path); _pendingRemovals.Remove(path); }
+            // File.Exists also returns false when a parent cannot be accessed.
+            // Delete is already a no-op for a missing file; access errors must retain the retry.
+            try { if(Owned(path)) File.Delete(path); _pendingRemovals.Remove(path); }
             catch(Exception error) when(error is IOException or UnauthorizedAccessException) { first??=error; }
         }
         if(first is not null) throw new ClipStoreException("Some image files could not be removed. Cleanup will retry.",first);
@@ -479,7 +481,16 @@ public sealed class ClipStore : IDisposable
                 _operationCancellation.ThrowIfCancellationRequested(); output.Flush(true); }
             File.Move(temporary,destination,false);
         }
-        finally { if(File.Exists(temporary)) File.Delete(temporary); }
+        finally
+        {
+            try { File.Delete(temporary); }
+            catch(Exception error) when(error is IOException or UnauthorizedAccessException)
+            {
+                // An existence preflight can hide access failures. Never lose the
+                // only reference to a sensitive partial image or mask the write error.
+                _pendingRemovals.Add(temporary);
+            }
+        }
     }
     private void EnsureOpen() { ObjectDisposedException.ThrowIf(_disposed,this); }
     public void Dispose() { lock(_gate) { if(_disposed) return; _disposed=true; _db.Dispose(); } }

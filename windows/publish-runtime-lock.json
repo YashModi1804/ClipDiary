@@ -1,0 +1,36 @@
+{
+  "formatVersion": 1,
+  "nsisVersion": "3.13",
+  "packages": {
+    "microsoft.netcore.app.host.win-arm64": {
+      "sha512": "sFXQ5snIEdwGEn8umr0TxoLXIa2ubuQZFSzRogkLW/XQmVOLb2hwdmDPl7wBQYc0rb4Qo2eUEVsjD5elJFQx9g==",
+      "version": "10.0.14"
+    },
+    "microsoft.netcore.app.host.win-x64": {
+      "sha512": "Kn602fS/n6hsgpCW8HzykOu31D/oNrxhETNlgoou5yj7Zvvw9KWX3GnG7hevtm9R3VKdP1kPEfQ0Y3eo83YafQ==",
+      "version": "10.0.14"
+    },
+    "microsoft.netcore.app.runtime.win-arm64": {
+      "sha512": "VX6JXS+AXtCL8brqXN5qvXmOzrlHOraG5T8dpdn3O1IL2knDcR1XwDNWZc2lLWuyg3u1Muu4zme2C5VnLOBoMQ==",
+      "version": "10.0.14"
+    },
+    "microsoft.netcore.app.runtime.win-x64": {
+      "sha512": "mLWGagTP5n7nMfJQI2XpXRYgvPcnyYvAc8ZiDfum8ShM0UcrPDyfW4Lqo45UtlCHCucERUHQuMTI6ybVweCN9A==",
+      "version": "10.0.14"
+    },
+    "microsoft.windowsdesktop.app.ref": {
+      "sha512": "oUdMkVocvdewR870lSc4DEViKTPzW25fpQDd0uZTY2DjxpAMvHJfr419eGop+vj909UT4SYSLFPGI4FfvS0hTg==",
+      "version": "10.0.14"
+    },
+    "microsoft.windowsdesktop.app.runtime.win-arm64": {
+      "sha512": "lSaoV5YDlcF/C36uu0fQA0RCUt/N0GMEZuUNXJw6ReuSeuG5lUFoKb6QtD1/Voro/EWalx3OBZacIaX7k0bs+Q==",
+      "version": "10.0.14"
+    },
+    "microsoft.windowsdesktop.app.runtime.win-x64": {
+      "sha512": "Hxj4llZzFIss9eBt/EKnxessXLi3/wj6Cwrqp2ZL1j74Pmg8VM+IZd9B7bWGt8flKre7z6cJwoRY5YpwJqX44Q==",
+      "version": "10.0.14"
+    }
+  },
+  "runtimeVersion": "10.0.14",
+  "sdkVersion": "10.0.403"
+}

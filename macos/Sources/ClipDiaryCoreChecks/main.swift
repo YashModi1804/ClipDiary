@@ -317,6 +317,75 @@ func verifyFailedAssetDeletionRetry() throws {
     require(!FileManager.default.fileExists(atPath: image.thumbnailPath!))
     print("PASS: failed asset removal is reported and retried by periodic purge after permissions recover, without reopening the store")
 }
+func verifyInaccessibleAssetDeletionRetry() throws {
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let assets = folder.appendingPathComponent("Assets")
+    defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: assets.path); try? FileManager.default.removeItem(at: folder) }
+    let store = try ClipStore(directory: folder)
+    let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 8, pixelsHigh: 8, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+    let image = try store.addImage(data: bitmap.representation(using: .png, properties: [:])!, title: "Inaccessible deletion", source: "Synthetic test")!
+    try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: assets.path)
+    var blocked = false
+    do { try store.delete(id: image.id) } catch { blocked = true }
+    try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: assets.path)
+    let retainedBeforeRetry = FileManager.default.fileExists(atPath: image.assetPath!)
+    try store.purge()
+    let retainedAfterRetry = FileManager.default.fileExists(atPath: image.assetPath!)
+    print("STAT DENIAL: reported=\(blocked), existedBeforeRetry=\(retainedBeforeRetry), existsAfterRetry=\(retainedAfterRetry)")
+    require(blocked && retainedBeforeRetry && !retainedAfterRetry, "Stat permission denial must retain asset cleanup until retry, rather than treating inaccessible as absent")
+    // Another actor may remove a queued file before our next tick: genuine
+    // absence is idempotent success, unlike an inaccessible parent directory.
+    let missing = try store.addImage(data: bitmap.representation(using: .png, properties: [:])!, title: "Already removed", source: "Synthetic test")!
+    try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: assets.path)
+    do { try store.delete(id: missing.id) } catch { }
+    try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: assets.path)
+    try FileManager.default.removeItem(atPath: missing.assetPath!)
+    try store.purge()
+    require(try store.records().isEmpty)
+    print("PASS: chmod000 asset stat denial reports failure and retains cleanup across permission recovery; genuinely absent queued files are idempotent")
+}
+
+func verifyFailedImageRollbackRetry() throws {
+    var retriedAll = true
+    for copyingSnippet in [false, true] {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let assets = folder.appendingPathComponent("Assets")
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: assets.path); try? FileManager.default.removeItem(at: folder) }
+        let store = try ClipStore(directory: folder)
+        let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 8, pixelsHigh: 8, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        let bytes = bitmap.representation(using: .png, properties: [:])!
+        let source = copyingSnippet ? try store.addImage(data: bytes, title: "Original", source: "Synthetic test") : nil
+        let before = try FileManager.default.contentsOfDirectory(atPath: assets.path).count
+        // Observe only this newly created synthetic store's SQLite handle. The
+        // trigger deterministically denies cleanup after image files are written.
+        let db = Mirror(reflecting: store).children.first { $0.label == "db" }!.value as! OpaquePointer
+        let path = strdup(assets.path)!
+        defer { sqlite3_create_function_v2(db, "fixture_deny_cleanup", 0, SQLITE_UTF8, nil, nil, nil, nil, nil); free(path) }
+        require(sqlite3_create_function_v2(db, "fixture_deny_cleanup", 0, SQLITE_UTF8, path, { context, _, _ in
+            let path = sqlite3_user_data(context)!.assumingMemoryBound(to: CChar.self)
+            require(chmod(path, 0) == 0, "Synthetic permissions denial must succeed")
+            sqlite3_result_error(context, "Synthetic insert failure", -1)
+        }, nil, nil, nil) == SQLITE_OK)
+        require(sqlite3_exec(db, "CREATE TRIGGER fixture_reject_image BEFORE INSERT ON clips BEGIN SELECT fixture_deny_cleanup(); END", nil, nil, nil) == SQLITE_OK)
+        var failed = false
+        do {
+            if let source { try store.saveSnippet(source.id) }
+            else { _ = try store.addImage(data: bytes, title: "Rollback", source: "Synthetic test") }
+        } catch ClipStoreError.database(let message) { failed = message.contains("Synthetic insert failure") }
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: assets.path)
+        require(failed, "Rollback must preserve original insertion error")
+        let afterFailure = try FileManager.default.contentsOfDirectory(atPath: assets.path).count
+        try store.purge()
+        let afterRetry = try FileManager.default.contentsOfDirectory(atPath: assets.path).count
+        print("ROLLBACK \(copyingSnippet ? "copy" : "add"): before=\(before), afterFailure=\(afterFailure), afterRetry=\(afterRetry)")
+        retriedAll = retriedAll && afterFailure == before + 1 && afterRetry == before
+        require(try store.records(snippets: true).isEmpty)
+        if let source { require(try Data(contentsOf: URL(fileURLWithPath: source.assetPath!)) == bytes, "Rollback must preserve source image") }
+    }
+    require(retriedAll, "Known rollback assets must remain queued after permission failure until periodic purge retries")
+    print("PASS: failed image insertion and independent snippet copy retain known rollback assets for retry and preserve source image/original errors")
+}
+
 func verifyLinkedStorageSafety() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
@@ -564,6 +633,8 @@ try verifyUnicodeSearchSemantics()
 try verifyMetadataBudgetAndExpiredCapacity()
 try verifyEmbeddedNullPersistence()
 try verifyFailedAssetDeletionRetry()
+try verifyInaccessibleAssetDeletionRetry()
+try verifyFailedImageRollbackRetry()
 try verifyLinkedStorageSafety()
 try verifyExpiredHistoryCannotBecomeSnippet()
 try verify()

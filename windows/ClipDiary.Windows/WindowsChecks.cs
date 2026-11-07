@@ -41,12 +41,14 @@ public static class WindowsChecks
             var now = DateTimeOffset.UtcNow;
             Check(!CapturePolicy.EligibleScreenshot(now - CapturePolicy.Retention, now - CapturePolicy.Retention - TimeSpan.FromSeconds(1), now), "96-hour boundary is expired");
             await CheckWindowSmoke(Check);
+            CheckSettingsSizeGuard(Check, root);
             var bitmap = new WriteableBitmap(2, 2, 96, 96, PixelFormats.Bgra32, null);
             bitmap.WritePixels(new Int32Rect(0, 0, 2, 2), new byte[] { 5, 30, 200, 255, 10, 30, 200, 255, 15, 30, 200, 255, 20, 30, 200, 255 }, 8, 0);
             bitmap.Freeze();
             byte[] png = ImageCodec.EncodePng(bitmap);
             var prepared = await Task.Run(() => ImageCodec.Prepare(png, "Synthetic image", "Synthetic source", now));
             Check(prepared.ThumbnailData is { Length: > 0 } && prepared.ImageData!.SequenceEqual(png) && prepared.Extension == ".png", "Native codec preserves full image and creates PNG thumbnail");
+            await CheckControllerCopyPrivacy(Check, root, png, bitmap);
             bool invalid = false; try { ImageCodec.Prepare([1, 2, 3], "Bad image", "test", now); } catch { invalid = true; }
             Check(invalid, "Corrupt image never reaches persistence callback");
             ClipboardWriter.CopyImage(new PreparedClipboardImage(bitmap, null));
@@ -142,6 +144,85 @@ public static class WindowsChecks
         }
         catch (Exception ex) { Console.Error.WriteLine($"Windows checks failed after {count}: {ex.Message}"); return 1; }
         finally { try { Directory.Delete(root, true); } catch { } }
+    }
+
+    private static void CheckSettingsSizeGuard(Action<bool,string> check,string root)
+    {
+        string folder=Path.Combine(root,"SettingsSizeGuard");Directory.CreateDirectory(folder);
+        var persistence=new LocalSettings(folder);var original=LocalSettings.Default;
+        persistence.Save(original);
+        string path=Path.Combine(folder,"settings.json");byte[] before=File.ReadAllBytes(path);
+        var oversized=original with { ExcludedApplications=Enumerable.Range(0,256).Select(index=>index.ToString("D3")+new string('x',509)).ToArray() };
+        bool rejected=false;
+        try { persistence.Save(oversized); } catch(InvalidDataException) { rejected=true; }
+        var restored=new LocalSettings(folder).Load();
+        check(rejected&&File.ReadAllBytes(path).SequenceEqual(before),"Oversized serialized settings are rejected before replacing the working file");
+        check(restored.ExcludedApplications.SequenceEqual(original.ExcludedApplications)&&restored.StartAtLogin==original.StartAtLogin,"Settings rejected by size limit leave a restart-readable configuration");
+        check(!Directory.EnumerateFiles(folder,"settings-*.tmp").Any(),"Oversized settings leave no temporary configuration file");
+    }
+
+    private static async Task CheckControllerCopyPrivacy(Action<bool,string> check,string root,byte[] png,BitmapSource bitmap)
+    {
+        foreach (string action in new[] { "clear", "delete-all", "delete", "expire", "quit" })
+        {
+            string folder=Path.Combine(root,"CopyPrivacy-"+action);
+            var store=new ClipStore(folder);
+            var item=store.AddImage(png,png,"png","Synthetic pending image","Synthetic controller")!;
+            var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            int writes=0;
+            var controller=new AppController(store,folder,async (_,_)=>
+            {
+                entered.TrySetResult();
+                // Simulates a native decoder that cannot stop halfway through its work.
+                await release.Task;
+                return new PreparedClipboardImage(bitmap,null);
+            },(_,_)=>writes++);
+            bool disposed=false;
+            try
+            {
+                var first=controller.CopyAsync(item.Id);
+                await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                var queued=action=="clear"?controller.CopyAsync(item.Id):Task.CompletedTask;
+                if(action=="clear") await controller.ClearHistoryAsync();
+                else if(action=="delete-all") await controller.DeleteAllAsync();
+                else if(action=="delete") await controller.DeleteAsync(item.Id);
+                else if(action=="quit") { await controller.DisposeAsync(); disposed=true; }
+                else
+                {
+                    using var db=new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder
+                    { DataSource=Path.Combine(folder,"history.sqlite3"),Pooling=false }.ToString());
+                    db.Open();using var command=db.CreateCommand();
+                    command.CommandText="UPDATE clips SET expires=@expiry WHERE id=@id";
+                    command.Parameters.AddWithValue("@expiry",DateTimeOffset.UtcNow.AddSeconds(-1).UtcTicks);
+                    command.Parameters.AddWithValue("@id",item.Id);command.ExecuteNonQuery();
+                }
+                release.TrySetResult();
+                bool rejected=false;
+                try { await first; } catch(OperationCanceledException) { rejected=true; } catch(ClipStoreException) { rejected=true; }
+                bool queuedRejected=action!="clear";
+                try { await queued; } catch(OperationCanceledException) { queuedRejected=true; }
+                check(rejected&&queuedRejected&&writes==0,"Pending explicit image copy cannot write synthetic clipboard after "+action);
+                if(!disposed) check(store.Record(item.Id) is null,"Canceled copy does not resurrect history after "+action);
+            }
+            finally
+            {
+                release.TrySetResult();
+                if(!disposed) await controller.DisposeAsync();
+            }
+        }
+        string validFolder=Path.Combine(root,"CopyPrivacy-valid");
+        var validStore=new ClipStore(validFolder);
+        var valid=validStore.AddText("Synthetic valid explicit copy","Original synthetic source")!;
+        int validWrites=0;
+        var validController=new AppController(validStore,validFolder,writeClipboard:(_,text)=>
+        { if(text!="Synthetic valid explicit copy") throw new InvalidOperationException("Copy text changed.");validWrites++; });
+        try
+        {
+            await validController.CopyAsync(valid.Id);
+            check(validWrites==1&&validStore.Record(valid.Id)!.Source==valid.Source,"Valid explicit copy still writes once and retains source");
+        }
+        finally { await validController.DisposeAsync(); }
     }
 
     // Native-only WPF smoke: compile on macOS, execute on an unlocked Windows desktop.
