@@ -162,6 +162,7 @@ public sealed class MainWindow : Window
             UpdateStatus();
             await ReloadAsync(true, true);
             if (request != visibilityVersion || AllowClose) return;
+            if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
             Show(); Activate(); search.Focus(); search.SelectAll();
             ScrollSelected();
         }

@@ -8,6 +8,8 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using ClipDiary.Windows.Platform;
+using ClipDiary.Windows.UI;
+using ClipDiary.Core;
 
 namespace ClipDiary.Windows;
 
@@ -38,6 +40,7 @@ public static class WindowsChecks
             Check(!CapturePolicy.IsPngComplete([137, 80, 78, 71, 13, 10, 26, 10]), "Truncated PNG is rejected");
             var now = DateTimeOffset.UtcNow;
             Check(!CapturePolicy.EligibleScreenshot(now - CapturePolicy.Retention, now - CapturePolicy.Retention - TimeSpan.FromSeconds(1), now), "96-hour boundary is expired");
+            await CheckWindowSmoke(Check);
             var bitmap = new WriteableBitmap(2, 2, 96, 96, PixelFormats.Bgra32, null);
             bitmap.WritePixels(new Int32Rect(0, 0, 2, 2), new byte[] { 5, 30, 200, 255, 10, 30, 200, 255, 15, 30, 200, 255, 20, 30, 200, 255 }, 8, 0);
             bitmap.Freeze();
@@ -140,4 +143,55 @@ public static class WindowsChecks
         catch (Exception ex) { Console.Error.WriteLine($"Windows checks failed after {count}: {ex.Message}"); return 1; }
         finally { try { Directory.Delete(root, true); } catch { } }
     }
+
+    // Native-only WPF smoke: compile on macOS, execute on an unlocked Windows desktop.
+    // No controller, store, startup registration, tray or clipboard is used by this fixture.
+    private static async Task CheckWindowSmoke(Action<bool, string> check)
+    {
+        var window = new MainWindow(new WindowSmokeActions());
+        try
+        {
+            check(!window.ShowInTaskbar && window.Width == 440 && window.Height == 696, "Native history window keeps its taskbar-free440x696 surface");
+            window.ShowHistory();
+            await Task.Delay(80);
+            check(window.IsVisible, "Native history window shows with synthetic in-memory actions");
+            window.WindowState = WindowState.Minimized;
+            await Task.Delay(100);
+            window.ShowHistory();
+            check(window.IsVisible && window.WindowState == WindowState.Normal, "Showing minimized history restores a visible normal WPF window");
+            window.HideHistory(false);
+            check(!window.IsVisible, "Hiding history removes the native window from view");
+        }
+        finally { window.AllowClose = true; window.Close(); }
+    }
+
+    private sealed class WindowSmokeActions : IClipDiaryActions
+    {
+        private readonly UiSettings settings = new(false, false, [], 0x44, 3, null);
+        private readonly ClipRecord[] records =
+        [
+            new("window-smoke-old", ClipKind.Text, "Synthetic old text", "Synthetic old text", DateTimeOffset.UtcNow.AddMinutes(-2), DateTimeOffset.UtcNow.AddHours(96), "Synthetic source", false, null, null, 18),
+            new("window-smoke-new", ClipKind.Text, "Synthetic recent text", "Synthetic recent text", DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddHours(96), "Synthetic source", false, null, null, 21)
+        ];
+        public event Action? Changed { add { } remove { } }
+        public string CaptureStatus => "Synthetic UI checks; no capture";
+        public Task<IReadOnlyList<ClipRecord>> GetRecordsAsync(string query, bool snippets, ClipKind? kind, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            IReadOnlyList<ClipRecord> result = records.Where(record => record.IsSnippet == snippets && (kind is null || record.Kind == kind) && record.Text!.Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
+            return Task.FromResult(result);
+        }
+        public Task<ClipRecord?> GetRecordAsync(string id) => Task.FromResult(records.FirstOrDefault(record => record.Id == id));
+        public Task CopyAsync(string id, IReadOnlyDictionary<string, string>? values = null) => Task.CompletedTask;
+        public Task SaveSnippetAsync(string id) => Task.CompletedTask;
+        public Task UpsertSnippetAsync(string? id, string title, string text, bool parameterized) => Task.CompletedTask;
+        public Task SetParameterizedAsync(string id, bool enabled) => Task.CompletedTask;
+        public Task DeleteAsync(string id) => Task.CompletedTask;
+        public Task ClearHistoryAsync() => Task.CompletedTask;
+        public Task DeleteAllAsync() => Task.CompletedTask;
+        public Task<UiSettings> GetSettingsAsync() => Task.FromResult(settings);
+        public Task ApplySettingsAsync(UiSettings value) => Task.CompletedTask;
+        public void RestorePreviousApplication() { }
+    }
+
 }
