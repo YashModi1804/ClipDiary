@@ -82,25 +82,29 @@ def sdk_pack_locations(dotnet):
     return properties["NETCoreSdkRuntimeIdentifier"], Path(properties["NetCoreTargetingPackRoot"])
 
 
-def verify_download_versions(inputs, sdk_rid, sdk_packs):
+def verify_download_versions(inputs, sdk_rid, sdk_packs, runtime=None):
     assets = json.loads((PROJECT.parent / "obj/project.assets.json").read_text(encoding="utf-8"))
     downloads = {}
     for framework in assets["project"]["frameworks"].values():
         downloads.update({item["name"].lower(): item["version"] for item in framework.get("downloadDependencies", [])})
     external, sdk_provided = set(), []
     for name, expected in inputs["packages"].items():
+        # A native restore need not acquire packs for a different publication RID.
+        if runtime is not None and name != "microsoft.windowsdesktop.app.ref" and not name.endswith("." + runtime):
+            continue
         version = expected["version"]
         if name in downloads:
             if downloads[name] != "[" + version + ", " + version + "]":
                 raise RuntimeError("Publish resolved a runtime/reference pack outside its lock: " + name)
             external.add(name)
             continue
-        # Native Windows SDKs include the desktop reference pack and their native
-        # apphost. Cross-host SDKs download those exact packs instead.
+        # Windows SDKs can pre-provision the reference pack and selected apphost.
+        # Other hosts download those exact packs; an unrelated RID is never required.
         if name == "microsoft.windowsdesktop.app.ref":
             supplied = sdk_packs / "Microsoft.WindowsDesktop.App.Ref" / version / "ref/net10.0/PresentationCore.dll"
-        elif name == "microsoft.netcore.app.host." + sdk_rid:
-            supplied = sdk_packs / ("Microsoft.NETCore.App.Host." + sdk_rid) / version / "runtimes" / sdk_rid / "native/apphost.exe"
+        elif name.startswith("microsoft.netcore.app.host."):
+            host_rid = name.removeprefix("microsoft.netcore.app.host.")
+            supplied = sdk_packs / ("Microsoft.NETCore.App.Host." + host_rid) / version / "runtimes" / host_rid / "native/apphost.exe"
         else:
             raise RuntimeError("Required publication pack was not resolved: " + name)
         if not supplied.is_file():
@@ -159,7 +163,7 @@ def main():
                    "-p:IncludeNativeLibrariesForSelfExtract=true", "-p:PublishTrimmed=false"]
     # Restore the same graph that is actually bundled, using committed publish locks.
     run([dotnet, "restore", PROJECT, "--locked-mode", *publication])
-    external, sdk_provided = verify_download_versions(inputs, *sdk_pack_locations(dotnet))
+    external, sdk_provided = verify_download_versions(inputs, *sdk_pack_locations(dotnet), runtime=args.runtime)
     runtime_archives = verified_runtime_archives(package_cache(dotnet), inputs, external)
     run([dotnet, "publish", PROJECT, "-c", "Release", "--no-restore", *publication,
          "-p:DebugType=None", "-p:DebugSymbols=false", "-o", publish])

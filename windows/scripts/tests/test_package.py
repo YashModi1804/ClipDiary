@@ -111,6 +111,33 @@ class PublicationGuards(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "outside its lock"):
                     package.verify_download_versions(inputs, "osx-arm64", packs)
 
+    def test_selected_rid_does_not_require_unrelated_architecture_packs(self):
+        with tempfile.TemporaryDirectory() as folder:
+            project, inputs, packs = self.sdk_fixture(Path(folder), {"microsoft.netcore.app.runtime.win-x64": "[10.0.14, 10.0.14]"})
+            inputs["packages"].update({name: {"version": "10.0.14"} for name in
+                ["microsoft.netcore.app.host.win-arm64", "microsoft.netcore.app.runtime.win-arm64", "microsoft.windowsdesktop.app.runtime.win-arm64"]})
+            with patch.object(package, "PROJECT", project):
+                external, provided = package.verify_download_versions(inputs, "win-x64", packs, runtime="win-x64")
+                self.assertEqual(external, {"microsoft.netcore.app.runtime.win-x64"})
+                self.assertEqual(set(provided), {"microsoft.windowsdesktop.app.ref", "microsoft.netcore.app.host.win-x64"})
+                self.assertFalse(any(name.endswith("win-arm64") for name in external | set(provided)))
+
+    def test_selected_cross_architecture_sdk_host_must_have_exact_locked_files(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            project, inputs, packs = self.sdk_fixture(root, {"microsoft.netcore.app.runtime.win-arm64": "[10.0.14, 10.0.14]"})
+            inputs["packages"] = {name: {"version": "10.0.14"} for name in
+                ["microsoft.windowsdesktop.app.ref", "microsoft.netcore.app.runtime.win-arm64", "microsoft.netcore.app.host.win-arm64", "microsoft.netcore.app.host.win-x64"]}
+            host = packs / "Microsoft.NETCore.App.Host.win-arm64/10.0.14/runtimes/win-arm64/native/apphost.exe"
+            host.parent.mkdir(parents=True); host.write_bytes(b"SDK provided ARM64 host fixture")
+            with patch.object(package, "PROJECT", project):
+                external, provided = package.verify_download_versions(inputs, "win-x64", packs, runtime="win-arm64")
+                self.assertEqual(external, {"microsoft.netcore.app.runtime.win-arm64"})
+                self.assertEqual(set(provided), {"microsoft.windowsdesktop.app.ref", "microsoft.netcore.app.host.win-arm64"})
+                host.unlink()
+                with self.assertRaisesRegex(RuntimeError, "SDK-provided pack is missing"):
+                    package.verify_download_versions(inputs, "win-x64", packs, runtime="win-arm64")
+
     def test_nsis_version_is_normalized(self):
         with patch.object(package.subprocess, "check_output", return_value="v3.13\n"):
             self.assertEqual(package.compiler_version("synthetic makensis"), "3.13")
