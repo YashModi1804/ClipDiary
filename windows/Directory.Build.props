@@ -3,5 +3,7 @@
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <!-- Bundling adds SDK-only tools; keep their restore state out of the source dependency locks. -->
+    <NuGetLockFilePath Condition="'$(PublishSingleFile)' == 'true'">$(MSBuildProjectDirectory)/obj/publish-packages.lock.json</NuGetLockFilePath>
   </PropertyGroup>
 </Project>
