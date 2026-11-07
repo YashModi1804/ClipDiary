@@ -183,6 +183,8 @@ def main():
     shutil.copy2(ROOT / "docs/WINDOWS_VALIDATION.md", publish / "docs/WINDOWS_VALIDATION.md")
     shutil.copy2(ROOT / "docs/OPEN_SOURCE_REVIEW.md", publish / "docs/OPEN_SOURCE_REVIEW.md")
     shutil.copy2(ROOT / "docs/CODEQL_TRIAGE.md", publish / "docs/CODEQL_TRIAGE.md")
+    shutil.copy2(ROOT / "docs/SECURITY_EXPERT_REVIEW.md", publish / "docs/SECURITY_EXPERT_REVIEW.md")
+    shutil.copy2(ROOT / "docs/DEVOPS_SECURITY_REVIEW.md", publish / "docs/DEVOPS_SECURITY_REVIEW.md")
     shutil.copy2(ROOT / "windows/ClipDiary.Windows/Platform/TESTABILITY.md", publish / "docs/TESTABILITY.md")
     (publish / "BUILD_INFO.json").write_text(json.dumps({"version": version, "runtime": args.runtime,
         "sourceCommit": revision, "sourceDirty": dirty, "sdkVersion": sdk_version,
@@ -214,6 +216,9 @@ def main():
         run([compiler, prefix + "V2", *[prefix + "D" + key + "=" + str(value) for key, value in definitions.items()],
              ROOT / "windows/installer/ClipDiary.nsi"])
         artifacts.append(setup)
+    completed_revision, completed_dirty = source_state(args.allow_dirty)
+    if completed_revision != revision or completed_dirty != dirty:
+        raise RuntimeError("Source HEAD or dirty state changed while packaging; retry from a stable checkout.")
     checksum = output / f"ClipDiary-{version}-{args.runtime}-SHA256SUMS.txt"
     lines = []
     for artifact in artifacts:

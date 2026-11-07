@@ -1,12 +1,12 @@
 # ClipDiary for Windows
 
-A native, local-only Windows replica of ClipDiary, written in C#/.NET 10 with WPF and SQLite. Windows version **0.1.0 is a beta until native Windows acceptance is recorded**. Cross-compilation and portable tests on macOS are useful evidence, but do not certify Windows clipboard, tray, focus, login or installer behavior. See [validation status](../docs/WINDOWS_VALIDATION.md).
+A native, local-only Windows replica of ClipDiary, written in C#/.NET 10 with WPF and SQLite. Windows version **0.1.1 is a beta until manual Windows acceptance is recorded**. Cross-compilation and portable tests on macOS are useful evidence, but do not certify Windows clipboard, tray, focus, login or installer behavior. See [validation status](../docs/WINDOWS_VALIDATION.md).
 
 ## Install and use
 
-No official GitHub Release is published yet. Successful CI runs provide temporary beta build artifacts; these are unsigned and are not a signed public release. Use the `win-x64` build for Intel/AMD PCs, or `win-arm64` for Windows on ARM. Windows 11 is recommended; older systems need an OS edition supported by .NET 10.
+No official GitHub Release is published yet. Successful `main`-branch CI runs in [YashModi1804/ClipDiary](https://github.com/YashModi1804/ClipDiary/actions) provide temporary beta build artifacts; these are unsigned and are not a signed public release. The repository’s standard workflow uploads beta binaries only for `main`. Verify the run belongs to `YashModi1804/ClipDiary`, uses ref `main`, and has a completed successful **Check ClipDiary** workflow. Do not trust pull-request/fork artifacts or matching filenames. Use the `win-x64` build for Intel/AMD PCs, or `win-arm64` for Windows on ARM. Windows 11 is recommended; older systems need an OS edition supported by .NET 10.
 
-Run `ClipDiary-0.1.0-<architecture>-Setup.exe`. Installation is per user, with no administrator account required. Setup creates a Start menu entry; updates keep history and snippets. The unsigned beta installer may show an unknown-publisher warning. A portable ZIP is also built: extract it to a permanent folder and open `ClipDiary.exe`. The .NET runtime is included, so ordinary users do not need to install an SDK or database.
+Run `ClipDiary-0.1.1-<architecture>-Setup.exe`. Installation is per user, with no administrator account required. Setup creates a Start menu entry; updates keep history and snippets. The unsigned beta installer may show an unknown-publisher warning. A portable ZIP is also built: extract it to a permanent folder and open `ClipDiary.exe`. The .NET runtime is included, so ordinary users do not need to install an SDK or database.
 
 The app lives in the tray and stays out of the taskbar. Copy text or an image, then press **Ctrl+Alt+D**. Change the shortcut in Settings if another app uses it. Click a row, or select it and press Ctrl+C, to copy and return to the previous app. Newest history is at the bottom. The operating system may restrict restoring focus in elevated/secure windows.
 

@@ -1,6 +1,6 @@
 # Windows validation
 
-Date: 7 November 2026. Native Windows version 0.1.0 remains a beta pending manual Windows acceptance.
+Date: 7 November 2026. Native Windows version 0.1.1 remains a beta pending manual Windows acceptance.
 
 ## GitHub CI update
 

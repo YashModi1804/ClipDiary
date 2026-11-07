@@ -1,4 +1,6 @@
-# CodeQL local-input triage
+# Historical baseline CodeQL local-input triage
+
+This document records the original 64-alert baseline. The final independent [security review](SECURITY_EXPERT_REVIEW.md) covers all 78 reported candidates, including 14 subsequent findings, and governs the conditional per-alert approvals.
 
 Reviewed 7 November 2026 by source and SARIF data-flow inspection. The expanded local-input setup reported 64 candidates against commit `4904f2e`; relevant current paths were compared with `b8f20e6`. Raw severity labels are query labels, not confirmed vulnerability severity. Each decision below applies to the reported source-to-sink flow, not every future use of that file or API.
 

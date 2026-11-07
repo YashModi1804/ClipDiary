@@ -4,8 +4,8 @@ An MIT-licensed, local clipboard diary for macOS and Windows. Text, copied image
 
 ## Platforms
 
-- **macOS:** the existing native Swift/SwiftUI/AppKit app, version 1.0.6. [Build and use it](macos/README.md).
-- **Windows:** native C#/.NET 10 WPF implementation, version 0.1.0 beta. Automated native Windows checks passed; manual acceptance remains pending. Platform validation is tracked in [the Windows guide](windows/README.md).
+- **macOS:** the existing native Swift/SwiftUI/AppKit app, version 1.0.7. [Build and use it](macos/README.md).
+- **Windows:** native C#/.NET 10 WPF implementation, version 0.1.1 beta. Automated native Windows checks passed; manual acceptance remains pending. Platform validation is tracked in [the Windows guide](windows/README.md).
 
 ```text
 macos/     Swift app, storage, checks and Mac build tooling
