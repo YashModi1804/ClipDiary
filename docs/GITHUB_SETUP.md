@@ -2,10 +2,10 @@
 
 The local repository has genuine development commits authored as Yash Modi using the verified GitHub noreply identity from the Project repository. History begins with the current Mac1.0.6 checkpoint; older development commits were never recorded and are not fabricated.
 
-The publishing branch is `main`. Create an empty GitHub repository under your account without adding another README or license, then connect it:
+The public repository is [YashModi1804/ClipDiary](https://github.com/YashModi1804/ClipDiary). Its publishing branch is `main`, and `origin` points to that repository. For another clone or fork, connect your chosen remote:
 
 ```sh
-git remote add origin YOUR_GITHUB_REPOSITORY_URL
+git remote add origin https://github.com/YashModi1804/ClipDiary.git
 git push -u origin main
 ```
 

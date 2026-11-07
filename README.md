@@ -28,7 +28,7 @@ Mac bundles and ZIPs remain in `dist/`. Windows builds and installers go to `art
 
 Real local Git history starts with the saved Mac 1.0.6 source. Earlier release binaries exist locally, but older source states were not committed. New changes are recorded as ordinary commits under the configured GitHub author identity. There are no fabricated historical commits.
 
-This repository can be pushed to a GitHub repository later with its complete local commit history. A remote repository has not been configured or published.
+This repository can be pushed to a GitHub repository later with its complete local commit history. The public repository is [YashModi1804/ClipDiary](https://github.com/YashModi1804/ClipDiary), published on the `main` branch.
 
 ## Open source
 
