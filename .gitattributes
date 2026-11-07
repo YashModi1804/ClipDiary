@@ -1,0 +1,8 @@
+* text=auto
+*.sh text eol=lf
+*.cs text eol=lf
+*.nsi text eol=lf
+*.icns -text
+*.ico -text
+# Preserve upstream notice formatting without treating it as a source lint failure.
+windows/licenses/* -whitespace

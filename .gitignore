@@ -26,3 +26,5 @@ TestResults/
 *.pfx
 *.p12
 *.snk
+__pycache__/
+*.pyc
