@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
+    <key>CFBundleExecutable</key><string>ClipDiary</string>
+    <key>CFBundleIdentifier</key><string>com.local.ClipDiary</string>
+    <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+    <key>CFBundleName</key><string>ClipDiary</string>
+    <key>CFBundleDisplayName</key><string>ClipDiary</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>1.0.6</string>
+    <key>CFBundleVersion</key><string>7</string>
+    <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>LSUIElement</key><true/>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>NSDesktopFolderUsageDescription</key><string>Import screenshots from the folder you choose.</string>
+    <key>NSDocumentsFolderUsageDescription</key><string>Import screenshots from the folder you choose.</string>
+</dict>
+</plist>
