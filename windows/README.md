@@ -4,7 +4,7 @@ A native, local-only Windows replica of ClipDiary, written in C#/.NET 10 with WP
 
 ## Install and use
 
-Use the `win-x64` download for Intel/AMD PCs, or `win-arm64` for Windows on ARM. Windows 11 is recommended; older systems need an OS edition supported by .NET 10.
+No official GitHub Release is published yet. Successful CI runs provide temporary beta build artifacts; these are unsigned and are not a signed public release. Use the `win-x64` build for Intel/AMD PCs, or `win-arm64` for Windows on ARM. Windows 11 is recommended; older systems need an OS edition supported by .NET 10.
 
 Run `ClipDiary-0.1.0-<architecture>-Setup.exe`. Installation is per user, with no administrator account required. Setup creates a Start menu entry; updates keep history and snippets. The unsigned beta installer may show an unknown-publisher warning. A portable ZIP is also built: extract it to a permanent folder and open `ClipDiary.exe`. The .NET runtime is included, so ordinary users do not need to install an SDK or database.
 
@@ -25,7 +25,7 @@ Local files are protected for the current account but not encrypted by ClipDiary
 
 ## Build
 
-Install the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) and Python 3.9+. To build installers, install [NSIS 3](https://nsis.sourceforge.io/Download). Source dependencies restore from NuGet; there is no runtime server.
+Install the [.NET SDK 10.0.403](https://dotnet.microsoft.com/download/dotnet/10.0) pinned in `../global.json` and Python 3.9+. To build installers, install [NSIS 3.13](https://nsis.sourceforge.io/Download). Source dependencies restore from NuGet; there is no runtime server.
 
 ```powershell
 dotnet run --project windows/ClipDiary.CoreChecks -c Release
@@ -35,7 +35,7 @@ python windows/scripts/package.py --runtime win-x64 --installer
 python windows/scripts/package.py --runtime win-arm64 --installer
 ```
 
-`windows/scripts/build.ps1 -Runtime win-x64 -Installer` is a PowerShell entry point for the same helper. Output is `artifacts/windows/`, including setup executables, portable ZIPs and SHA256 checksum files. Set `DOTNET_COMMAND` or `NSIS_COMPILER` when the tools are not on PATH. A Mac/Linux host can cross-build using the project's Windows targeting setting, but cannot run WPF/Win32 integration checks.
+`windows/scripts/build.ps1 -Runtime win-x64 -Installer` is a PowerShell entry point for the same helper. Output is `artifacts/windows/`, including setup executables, portable ZIPs and SHA256 checksum files. Set `DOTNET_COMMAND` or `NSIS_COMPILER` when the tools are not on PATH. A Mac/Linux host can cross-build using the project's Windows targeting setting, but cannot run WPF/Win32 integration checks. Release packaging requires a clean committed checkout. `--allow-dirty` is available only for development builds and records uncommitted inputs as `sourceDirty: true` in BUILD_INFO. Single-file publication uses committed `packages.publish.lock.json` files, while `publish-runtime-lock.json` pins the SDK and runtime archive hashes. Dependency/toolchain updates must refresh these together and pass both portable and native CI.
 
 On a disposable interactive Windows desktop, close the normal app, then run:
 

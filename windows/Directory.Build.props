@@ -2,8 +2,11 @@
   <PropertyGroup>
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
     <Deterministic>true</Deterministic>
+    <NuGetAudit Condition="'$(CI)' == 'true'">true</NuGetAudit>
+    <NuGetAuditMode Condition="'$(CI)' == 'true'">all</NuGetAuditMode>
+    <WarningsAsErrors Condition="'$(CI)' == 'true'">$(WarningsAsErrors);NU1900;NU1901;NU1902;NU1903;NU1904</WarningsAsErrors>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
-    <!-- Bundling adds SDK-only tools; keep their restore state out of the source dependency locks. -->
-    <NuGetLockFilePath Condition="'$(PublishSingleFile)' == 'true'">$(MSBuildProjectDirectory)/obj/publish-packages.lock.json</NuGetLockFilePath>
+    <!-- Single-file publication has additional SDK tools; lock that graph separately in source. -->
+    <NuGetLockFilePath Condition="'$(PublishSingleFile)' == 'true'">$(MSBuildProjectDirectory)/packages.publish.lock.json</NuGetLockFilePath>
   </PropertyGroup>
 </Project>
