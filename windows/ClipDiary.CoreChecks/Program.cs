@@ -193,10 +193,11 @@ static class Checks
             finally {File.SetUnixFileMode(assets,UnixFileMode.UserRead|UnixFileMode.UserWrite|UnixFileMode.UserExecute);}
             store.Purge();Require(!File.Exists(image.AssetPath)&&!File.Exists(image.ThumbnailPath),"failed deletion retried without restart");
             FailedTemporaryCleanup(store,assets);
+            FailedTemporaryCleanup(store,assets,denyStat:true);
         }
     }
     [System.Runtime.Versioning.UnsupportedOSPlatform("windows")]
-    private static void FailedTemporaryCleanup(ClipStore store,string assets)
+    private static void FailedTemporaryCleanup(ClipStore store,string assets,bool denyStat=false)
     {
         // Controlled partial-stream failure makes an otherwise hard-to-time filesystem
         // boundary deterministic. It never accesses a clipboard or a user's files.
@@ -204,10 +205,16 @@ static class Checks
         Exception? original=null;
         try
         {
-            using var input=new DeniedCleanupStream(assets);
+            using var input=new DeniedCleanupStream(assets,denyStat);
             try { method.Invoke(store,[Path.Combine(assets,Guid.NewGuid().ToString("D")+".png"),input]); }
             catch(System.Reflection.TargetInvocationException error) { original=error.InnerException; }
             Require(original is IOException && original.Message==DeniedCleanupStream.Failure,"failed temporary removal must not mask the interrupted-write error");
+            if(denyStat)
+            {
+                Require(!File.Exists(input.TemporaryPath),"inaccessible parent hides an existing sensitive temporary from File.Exists");
+                Throws<ClipStoreException>(()=>store.Purge(),"inaccessible temporary remains queued and reports cleanup failure");
+                File.SetUnixFileMode(assets,UnixFileMode.UserRead|UnixFileMode.UserWrite|UnixFileMode.UserExecute);
+            }
             string temporary=System.IO.Directory.EnumerateFiles(assets,"*.tmp").Single();
             Require(File.ReadAllText(temporary)==DeniedCleanupStream.SyntheticSecret,"sensitive partial fixture really exists before retry");
         }
@@ -216,18 +223,20 @@ static class Checks
         Require(!System.IO.Directory.EnumerateFiles(assets,"*.tmp").Any(),"periodic purge retries failed partial-image cleanup without restart");
     }
     [System.Runtime.Versioning.UnsupportedOSPlatform("windows")]
-    private sealed class DeniedCleanupStream(string folder):Stream
+    private sealed class DeniedCleanupStream(string folder,bool denyStat=false):Stream
     {
         internal const string Failure="Synthetic image write interrupted";
         internal const string SyntheticSecret="Synthetic private partial image";
         private bool written;
+        internal string? TemporaryPath { get; private set; }
         public override int Read(byte[] buffer,int offset,int count)
         {
             if(!written)
             {
                 written=true;byte[] bytes=Encoding.UTF8.GetBytes(SyntheticSecret);bytes.CopyTo(buffer,offset);return bytes.Length;
             }
-            File.SetUnixFileMode(folder,UnixFileMode.UserRead|UnixFileMode.UserExecute);
+            TemporaryPath=System.IO.Directory.EnumerateFiles(folder,"*.tmp").Single();
+            File.SetUnixFileMode(folder,denyStat?UnixFileMode.None:UnixFileMode.UserRead|UnixFileMode.UserExecute);
             throw new IOException(Failure);
         }
         public override int Read(Span<byte> buffer)

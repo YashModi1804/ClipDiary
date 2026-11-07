@@ -172,7 +172,9 @@ public final class ClipStore {
             try insert(record, digest: digest)
             return record
         } catch {
-            try? fm.removeItem(at: asset); try? fm.removeItem(at: thumb); throw error
+            pendingAssetRemovals.formUnion([asset.path, thumb.path])
+            try? retryPendingAssetRemovals()
+            throw error
         }
     }
 
@@ -231,7 +233,8 @@ public final class ClipStore {
             try insert(duplicate, digest: nil)
             return duplicate
         } catch {
-            for url in copied { try? fm.removeItem(at: url) }
+            pendingAssetRemovals.formUnion(copied.map(\.path))
+            try? retryPendingAssetRemovals()
             throw error
         }
     }
@@ -370,7 +373,10 @@ public final class ClipStore {
     private func removeOwned(_ path: String) throws {
         let url = URL(fileURLWithPath: path).standardizedFileURL
         guard [assets.path, thumbnails.path].contains(url.deletingLastPathComponent().resolvingSymlinksInPath().path) else { return }
-        if fm.fileExists(atPath: url.path) { try fm.removeItem(at: url) }
+        do { try fm.removeItem(at: url) }
+        catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileNoSuchFileError { }
+        // An inaccessible parent can make fileExists return false. Preserve all
+        // permission/IO failures in the pending set until deletion really succeeds.
     }
     private func reconcileAssets() throws {
         // Startup must not materialize every copied text body (up to the storage budget).
