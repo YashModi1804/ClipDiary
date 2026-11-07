@@ -2,15 +2,14 @@
 
 The local repository has genuine development commits authored as Yash Modi using the verified GitHub noreply identity from the Project repository. History begins with the current Mac1.0.6 checkpoint; older development commits were never recorded and are not fabricated.
 
-The current working branch is `codex/windows-port`. Create an empty GitHub repository under your account without adding another README or license, then connect it. For a conventional main branch:
+The publishing branch is `main`. Create an empty GitHub repository under your account without adding another README or license, then connect it:
 
 ```sh
-git branch -m main
 git remote add origin YOUR_GITHUB_REPOSITORY_URL
 git push -u origin main
 ```
 
-The rename keeps all commits. If a remote already exists, inspect it first rather than overwriting another project. Choose public visibility when ready to publish the MIT-licensed source. No credentials or signing keys belong in the repository.
+All existing commits are preserved. If a remote already exists, inspect it first rather than overwriting another project. Choose public visibility when ready to publish the MIT-licensed source. No credentials or signing keys belong in the repository.
 
 `artifacts/ClipDiary-history.bundle` is a portable Git copy containing the source and commit history. On another computer:
 
