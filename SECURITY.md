@@ -4,6 +4,8 @@ ClipDiary stores clipboard data locally under the current user's account. It use
 
 Supported sensitive/transient clipboard markers and excluded apps are skipped on a best-effort basis; this is not universal secret detection. Four-day expiry deletes app-owned history; it cannot erase the system clipboard, screenshot originals, other clipboard managers, snapshots or backups. Snippets remain until explicitly deleted.
 
-Report security defects privately using GitHub's private vulnerability reporting when enabled. If unavailable, contact the maintainer through the GitHub profile before posting sensitive details publicly. Use synthetic content in bug reports, and never attach your real history database or private screenshots.
+Report security defects privately through [GitHub private vulnerability reporting](https://github.com/YashModi1804/ClipDiary/security/advisories/new). Use synthetic content in bug reports, and never attach your real history database or private screenshots. Public issues are suitable for non-sensitive bugs only.
 
-Public release checks include dependency audits, safe-path and retention tests, source-preserving screenshot imports, native permission/session behavior and signed/reproducible artifact verification when signing is available. Signing credentials are not included in this repository. Windows native acceptance is tracked separately from Mac-run checks.
+Security fixes target the latest source on `main` and the next release. Older binaries are not separately maintained. Windows remains a beta pending manual native acceptance; do not assume older builds contain current fixes.
+
+Automated checks cover dependency advisories, source analysis, secret scanning and focused retention/path/privacy regressions. They do not establish that all vulnerabilities are absent. Native Windows acceptance is tracked separately from portable Mac-run checks. Public release signing and notarization are not configured; current checksums identify files but do not prove publisher identity or byte-for-byte reproducibility.

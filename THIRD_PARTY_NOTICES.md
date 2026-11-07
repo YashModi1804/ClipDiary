@@ -8,7 +8,7 @@ ClipDiary's own code and original icon artwork are MIT licensed; see LICENSE. De
 - SQLitePCLRaw.core, provider.e_sqlite3, bundle_e_sqlite3 and lib.e_sqlite3 2.1.13: Apache-2.0; copyright 2014–2024 SourceGear, LLC. Full license: `windows/licenses/SQLitePCLRaw.txt`. [Upstream](https://github.com/ericsink/SQLitePCL.raw).
 - SQLite itself is public domain. [Upstream copyright statement](https://www.sqlite.org/copyright.html).
 - The self-contained Windows release includes .NET and Windows Desktop runtime components. The .NET MIT license is in `windows/licenses/DotNet.txt`; the packaging helper also copies license/third-party notice files from the exact restored runtime packages into the distributed `licenses/` folder. These components have their own included third-party notices. [Runtime sources](https://github.com/dotnet/runtime).
-- NSIS is used to create Windows installers. Its compiler/installer components retain the NSIS zlib/bzip2 licenses; the full notices are in `windows/licenses/NSIS.txt`. [Upstream licenses](https://nsis.sourceforge.io/License). No NSIS compiler is required to run ClipDiary.
+- NSIS is used to create Windows installers. Its compiler/installer components include zlib/bzip2 licenses and the LZMA module under the Common Public License 1.0 with its special linking exception; the full notices are in `windows/licenses/NSIS.txt`. [Upstream licenses](https://nsis.sourceforge.io/License). No NSIS compiler is required to run ClipDiary.
 
 ## macOS
 
