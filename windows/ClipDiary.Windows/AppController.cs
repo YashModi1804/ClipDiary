@@ -18,6 +18,10 @@ internal sealed class AppController : IClipDiaryActions, IAsyncDisposable
     private readonly GlobalHotKey hotkey;
     private readonly CancellationTokenSource lifetime = new();
     private readonly SemaphoreSlim copying = new(1, 1);
+    private readonly object copyCancellationGate = new();
+    private CancellationTokenSource pendingCopies = new();
+    private readonly Func<ClipRecord, CancellationToken, Task<PreparedClipboardImage>> prepareCopyImage;
+    private readonly Action<PreparedClipboardImage?, string> writeClipboard;
     private readonly SemaphoreSlim changingSettings = new(1, 1);
     private readonly DispatcherTimer maintenance;
     private TrayService? tray;
@@ -28,9 +32,16 @@ internal sealed class AppController : IClipDiaryActions, IAsyncDisposable
     internal MainWindow Window { get; }
     public event Action? Changed;
 
-    internal AppController(ClipStore store, string dataDirectory)
+    internal AppController(ClipStore store, string dataDirectory,
+        Func<ClipRecord, CancellationToken, Task<PreparedClipboardImage>>? prepareCopyImage = null,
+        Action<PreparedClipboardImage?, string>? writeClipboard = null)
     {
         this.store = store;
+        this.prepareCopyImage = prepareCopyImage ?? ((item, token) => Task.Run(() => ClipboardWriter.PrepareImage(ReadImage(item)), token));
+        this.writeClipboard = writeClipboard ?? ((image, text) =>
+        {
+            if (image is not null) ClipboardWriter.CopyImage(image); else ClipboardWriter.CopyText(text);
+        });
         dispatcher = Dispatcher.CurrentDispatcher;
         persistence = new LocalSettings(dataDirectory);
         settings = persistence.Load();
@@ -133,32 +144,62 @@ internal sealed class AppController : IClipDiaryActions, IAsyncDisposable
 
     public Task<ClipRecord?> GetRecordAsync(string id) => store.RunAsync(s => s.Record(id), lifetime.Token);
 
+    private CancellationTokenSource BeginCopy()
+    {
+        lock (copyCancellationGate)
+        {
+            if (stopping) throw new OperationCanceledException("ClipDiary is shutting down.");
+            return CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token, pendingCopies.Token);
+        }
+    }
+    private void InvalidatePendingCopies()
+    {
+        CancellationTokenSource old;
+        lock (copyCancellationGate)
+        {
+            old = pendingCopies;
+            pendingCopies = new CancellationTokenSource();
+        }
+        old.Cancel(); old.Dispose();
+    }
+    private static bool SameCopySource(ClipRecord expected, ClipRecord? current) => current is not null &&
+        current.Kind == expected.Kind && current.Text == expected.Text && current.Source == expected.Source &&
+        current.IsParameterized == expected.IsParameterized && current.IsSnippet == expected.IsSnippet &&
+        current.AssetPath == expected.AssetPath && current.ThumbnailPath == expected.ThumbnailPath;
+
     public async Task CopyAsync(string id, IReadOnlyDictionary<string, string>? values = null)
     {
-        await copying.WaitAsync(lifetime.Token);
+        // Capture the epoch before waiting: deletion/clear must invalidate queued copies too.
+        using var operation = BeginCopy();
+        var token = operation.Token;
+        await copying.WaitAsync(token);
         try
         {
-            var item = await GetRecordAsync(id) ?? throw new ClipStoreException("This item has expired or was removed.");
+            var item = await store.RunAsync(s => s.Record(id), token) ?? throw new ClipStoreException("This item has expired or was removed.");
             var text = item.Kind == ClipKind.Text && item.IsSnippet && item.IsParameterized
                 ? SnippetParameters.Render(item.Text ?? "", values) : item.Text ?? "";
             PreparedClipboardImage? image = item.Kind == ClipKind.Image
-                ? await Task.Run(() => ClipboardWriter.PrepareImage(ReadImage(item)), lifetime.Token) : null;
-            lifetime.Token.ThrowIfCancellationRequested();
+                ? await prepareCopyImage(item, token) : null;
+            token.ThrowIfCancellationRequested();
+            var current = await store.RunAsync(s => s.Record(item.Id), token);
+            if (!SameCopySource(item, current)) throw new ClipStoreException("The original item changed or was removed during copying.");
             await dispatcher.InvokeAsync(() =>
             {
+                token.ThrowIfCancellationRequested();
+                if (item.ExpiresAt is { } expiry && expiry <= DateTimeOffset.UtcNow)
+                    throw new ClipStoreException("This item expired while its copy was being prepared.");
                 session.InvalidatePending();
-                if (image is not null) ClipboardWriter.CopyImage(image); else ClipboardWriter.CopyText(text);
+                writeClipboard(image, text);
                 clipboard.MarkOwnWrite();
-            });
+            }, DispatcherPriority.Normal, token);
             try
             {
                 await store.RunAsync(s =>
                 {
-                    var current = s.Record(item.Id);
-                    if (current is null || current.Text != item.Text || current.Kind != item.Kind || current.IsParameterized != item.IsParameterized)
+                    if (!SameCopySource(item, s.Record(item.Id)))
                         throw new ClipStoreException("The original item changed or was removed during copying.");
                     return s.Recopy(item.Id, values);
-                }, lifetime.Token);
+                }, token);
             }
             catch (Exception error)
             { throw new ClipStoreException("Copied successfully, but its history update could not be saved. You can still paste it. " + error.Message, error); }
@@ -182,7 +223,10 @@ internal sealed class AppController : IClipDiaryActions, IAsyncDisposable
     private async Task Mutate(Action<ClipStore> action)
     { await store.RunAsync(action, lifetime.Token); backgroundError = null; Notify(); }
     public Task SaveSnippetAsync(string id) => Mutate(s => s.SaveSnippet(id));
-    public Task UpsertSnippetAsync(string? id, string title, string text, bool parameterized) => Mutate(s =>
+    public Task UpsertSnippetAsync(string? id, string title, string text, bool parameterized)
+    {
+        if (id is not null) InvalidatePendingCopies();
+        return Mutate(s =>
     {
         if (id is null) s.CreateSnippet(title, text);
         else
@@ -191,10 +235,11 @@ internal sealed class AppController : IClipDiaryActions, IAsyncDisposable
             s.UpdateSnippet(id, title, item.Kind == ClipKind.Image ? null : text, item.Kind == ClipKind.Text && parameterized);
         }
     });
-    public Task SetParameterizedAsync(string id, bool enabled) => Mutate(s => s.SetParameterized(id, enabled));
-    public Task DeleteAsync(string id) { session.ForgetRecentImages(); return Mutate(s => s.Delete(id)); }
-    public Task ClearHistoryAsync() { session.InvalidatePending(); return Mutate(s => s.ClearHistory()); }
-    public Task DeleteAllAsync() { session.InvalidatePending(); return Mutate(s => s.DeleteAll()); }
+    }
+    public Task SetParameterizedAsync(string id, bool enabled) { InvalidatePendingCopies(); return Mutate(s => s.SetParameterized(id, enabled)); }
+    public Task DeleteAsync(string id) { InvalidatePendingCopies(); session.ForgetRecentImages(); return Mutate(s => s.Delete(id)); }
+    public Task ClearHistoryAsync() { InvalidatePendingCopies(); session.InvalidatePending(); return Mutate(s => s.ClearHistory()); }
+    public Task DeleteAllAsync() { InvalidatePendingCopies(); session.InvalidatePending(); return Mutate(s => s.DeleteAll()); }
 
     public Task<UiSettings> GetSettingsAsync() => Task.FromResult(settings with { ExcludedApplications = settings.ExcludedApplications.ToArray() });
     public Task ApplySettingsAsync(UiSettings requested) => ChangeSettingsAsync(_ => requested);
@@ -233,13 +278,14 @@ internal sealed class AppController : IClipDiaryActions, IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         if (stopping) return;
-        stopping = true; maintenance.Stop(); lifetime.Cancel(); session.InvalidatePending();
+        stopping = true; InvalidatePendingCopies(); maintenance.Stop(); lifetime.Cancel(); session.InvalidatePending();
         // Let an in-progress settings save complete/roll back before releasing native registrations.
         await changingSettings.WaitAsync();
         try { clipboard.Dispose(); await screenshots.DisposeAsync(); hotkey.Dispose(); tray?.Dispose(); session.Dispose(); }
         finally { changingSettings.Release(); }
         Window.AllowClose = true; Window.Close();
         await Task.Run(store.Dispose);
+        lock (copyCancellationGate) pendingCopies.Dispose();
         lifetime.Dispose();
     }
 }

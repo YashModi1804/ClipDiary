@@ -479,7 +479,19 @@ public sealed class ClipStore : IDisposable
                 _operationCancellation.ThrowIfCancellationRequested(); output.Flush(true); }
             File.Move(temporary,destination,false);
         }
-        finally { if(File.Exists(temporary)) File.Delete(temporary); }
+        finally
+        {
+            if(File.Exists(temporary))
+            {
+                try { File.Delete(temporary); }
+                catch(Exception error) when(error is IOException or UnauthorizedAccessException)
+                {
+                    // Never mask the original write/cancellation error or lose the
+                    // only reference to a sensitive partial image. Purge retries it.
+                    _pendingRemovals.Add(temporary);
+                }
+            }
+        }
     }
     private void EnsureOpen() { ObjectDisposedException.ThrowIf(_disposed,this); }
     public void Dispose() { lock(_gate) { if(_disposed) return; _disposed=true; _db.Dispose(); } }
