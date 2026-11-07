@@ -10,7 +10,7 @@ Source builds need a recent Apple SDK containing `NSPasteboard.accessBehavior` (
 
 ## Build and run
 
-From this directory:
+From the repository root (one directory above this guide):
 
 ```sh
 ./scripts/test.sh

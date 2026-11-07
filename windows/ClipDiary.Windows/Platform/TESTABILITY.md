@@ -27,3 +27,6 @@ The encoded image limit is25 MiB, decoded dimensions50 MP, text1 MiB UTF-8, thum
 Large stored JPEG/TIFF images can be copied through the lossless bitmap clipboard format even if re-encoding them as PNG would exceed25 MiB; PNG is an optional companion format for explicit Copy. Preparation/encoding runs on a worker; only the final clipboard ownership change is STA.
 
 Native API references: [Microsoft clipboard privacy formats](https://learn.microsoft.com/en-us/windows/win32/dataxchg/clipboard-formats#cloud-clipboard-and-clipboard-history-formats) and [FOLDERID_Screenshots](https://learn.microsoft.com/en-us/windows/win32/shell/knownfolderid).
+
+
+The Windows-only UI smoke constructs the real MainWindow with synthetic in-memory actions, verifies440×696/taskbar-free presentation, restores a minimized window through ShowHistory, and confirms hiding. The fixture closes its window in finally. It uses no controller, database, clipboard, startup or tray. macOS cross-compilation checks the code only; WPF state assertions require Windows.

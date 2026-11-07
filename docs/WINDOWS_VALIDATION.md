@@ -17,4 +17,19 @@ No real clipboard or history data was inspected. Dependency versions/hashes are 
 
 ## Final results
 
-Pending final integrated build and packaging.
+The complete Windows solution cross-build passed with zero warnings/errors. After the minimized-window fix, both final self-contained publications compiled successfully and NSIS 3.13 generated per-user setup executables on this Mac. The x64 application PE machine is0x8664; the ARM64 application is0xAA64. Both ZIP CRC checks passed; independent SHA256 checks matched each ZIP and setup executable. Artifacts contain the MIT license, dependency/runtime notices, offline guides and BUILD_INFO.json linking the executable source to commit4c984a4 and SDK10.0.403.
+
+| Artifact | Bytes |
+| --- | ---: |
+| ClipDiary-0.1.0-win-x64-Setup.exe | 51,046,296 |
+| ClipDiary-0.1.0-win-x64.zip | 70,338,491 |
+| ClipDiary-0.1.0-win-arm64-Setup.exe | 44,521,214 |
+| ClipDiary-0.1.0-win-arm64.zip | 65,283,173 |
+
+The current NuGet advisory query reported no vulnerable packages for the application/portable projects, including transitive dependencies. This is not a proof of absence of every native/library vulnerability. Standard credential/private-key patterns were not found in tracked source. No runtime HTTP/network client was found in the Mac/Windows application sources. Generated builds, audit output and real user data stay excluded from Git.
+
+A real Windows-only UI smoke fixture now constructs the MainWindow using synthetic in-memory actions, checks440×696/taskbar-free presentation, minimize/reopen restoration and hiding, then closes the window in finally. It does not start a controller, access a database, clipboard, startup or tray. These four new state checks compiled but have not executed on this Mac.
+
+The GitHub workflow is prepared for portable checks on Linux/macOS/Windows, Mac native checks plus XCTest under full Xcode, and synthetic native Windows checks followed by packaging. Workflow YAML parsed successfully; the workflow has not been executed because no GitHub remote is configured. Local Command Line Tools lack XCTest, so the separate XCTest sources remain unexecuted here. Existing Mac standalone/native checks passed86 service/35 model assertions plus keyboard/six hover layouts. A public Mac ZIP was also rebuilt with license resources; it does not replace the user's installed app.
+
+Windows-native acceptance remains pending. All Windows downloads must remain labeled beta until the real Windows checks and manual install/update/quit/login/clipboard/pointer scenarios are observed. No signing certificate or public GitHub release has been created.
