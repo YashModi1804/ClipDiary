@@ -10,3 +10,19 @@ dist/
 *.sqlite3-*
 *.db
 *.db-*
+
+# Windows/.NET build products and local settings
+**/bin/
+**/obj/
+.vs/
+**/*.user
+**/*.suo
+artifacts/
+TestResults/
+.nuget/
+.dotnet/
+.env
+.env.*
+*.pfx
+*.p12
+*.snk
